@@ -1,11 +1,31 @@
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import NextAuth from "next-auth";
+import { JWT } from "next-auth/jwt";
+import { Session } from "next-auth";
 import { db } from "@/lib/db";
 import { getUserByEmail } from "@/lib/data/user";
 import CredentialsProvider from "next-auth/providers/credentials";
 import GoogleProvider from "next-auth/providers/google";
 import GithubProvider from "next-auth/providers/github";
 import bcrypt from "bcryptjs";
+
+// Define types for session, token, and user
+interface ExtendedUser {
+  id: string;
+  name?: string | null;
+  email?: string | null;
+  role?: string;
+  image?: string | null;
+}
+
+interface ExtendedSession extends Session {
+  user: ExtendedUser;
+}
+
+interface ExtendedToken extends JWT {
+  id?: string;
+  role?: string;
+}
 
 export const authOptions = {
   adapter: PrismaAdapter(db),
@@ -54,9 +74,9 @@ export const authOptions = {
     })
   ],
   callbacks: {
-    async session({ session, token }: any) {
+    async session({ session, token }: { session: ExtendedSession; token: ExtendedToken }) {
       if (token) {
-        session.user.id = token.id;
+        session.user.id = token.id as string;
         session.user.name = token.name;
         session.user.email = token.email;
         session.user.role = token.role;
@@ -64,8 +84,8 @@ export const authOptions = {
       }
       return session;
     },
-    async jwt({ token, user }: any) {
-      const existingUser = user ? await getUserByEmail(user.email) : null;
+    async jwt({ token, user }: { token: ExtendedToken; user?: ExtendedUser }) {
+      const existingUser = user?.email ? await getUserByEmail(user.email) : null;
 
       if (existingUser) {
         token.id = existingUser.id;
